@@ -56,6 +56,12 @@ internal class IndentedStringBuilder
         _indentationPending = true;
     }
 
+    public void AppendUnindentedLine(string value)
+    {
+        _sb.AppendLine(value);
+        _indentationPending = true;
+    }
+
     private void AppendIndentationIfNeeded()
     {
         if (!_indentationPending)
