@@ -274,7 +274,7 @@ internal sealed class EngineClassesBindingsDataCollector : BindingsDataCollector
                 var parameter = new ParameterInfo("args", KnownTypes.SystemReadOnlySpanOf(KnownTypes.GodotVariant))
                 {
                     ScopedKind = ScopedKind.ScopedRef,
-                    DefaultValue = "default",
+                    IsParams = true,
                 };
                 method.Parameters.Add(parameter);
 
