@@ -1,7 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using Microsoft.VisualStudio.SolutionPersistence;
+using Microsoft.VisualStudio.SolutionPersistence.Model;
+using Microsoft.VisualStudio.SolutionPersistence.Serializer;
 
 namespace Godot.EditorIntegration.Internals;
 
@@ -18,7 +23,7 @@ internal static class EditorPath
 
     public static string ProjectAssemblyName => _projectAssemblyName ??= EditorInternal.GetProjectAssemblyName();
 
-    public static string ProjectSlnPath => _slnPath ??= EditorInternal.GetProjectSlnPath();
+    public static string ProjectSlnPath => _slnPath ??= GetProjectSlnPath();
 
     public static string ProjectCSProjPath => _csprojPath ??= EditorInternal.GetProjectCSProjPath();
 
@@ -42,5 +47,54 @@ internal static class EditorPath
         _projectAssemblyName = null;
         _slnPath = null;
         _csprojPath = null;
+    }
+
+    private static string GetProjectSlnPath()
+    {
+        string slnDir = EditorInternal.GetProjectSlnPath();
+
+        List<string> slnPaths = new();
+        slnPaths.AddRange(Directory.GetFiles(slnDir, "*.sln"));
+        slnPaths.AddRange(Directory.GetFiles(slnDir, "*.slnx"));
+
+        for (int i = slnPaths.Count - 1; i > 0; --i)
+        {
+            ISolutionSerializer? serializer = SolutionSerializers.GetSerializerByMoniker(slnPaths[i]);
+
+            if (serializer is null)
+            {
+                goto SolutionIsInvalid;
+            }
+
+            SolutionModel solution = serializer.OpenAsync(slnPaths[i], CancellationToken.None).Result;
+
+            foreach (SolutionProjectModel project in solution.SolutionProjects)
+            {
+                string csProjPath = Path.GetFullPath(project.FilePath, Path.GetDirectoryName(slnPaths[i])!)
+                                        .Replace('\\', '/');
+
+                if (string.Equals(csProjPath, ProjectCSProjPath, StringComparison.Ordinal))
+                {
+                    goto SolutionIsValid;
+                }
+            }
+
+        SolutionIsInvalid:
+            slnPaths.RemoveAt(i);
+        SolutionIsValid:;
+        }
+
+        // TODO: Better error handling.
+        switch (slnPaths.Count)
+        {
+            case 1:
+                return slnPaths[0];
+            case 0:
+                GD.PushError("NO SOLUTION");
+                return Path.Combine(slnDir, $"{ProjectAssemblyName}.sln");
+            default:
+                GD.PushError("MULTIPLE SOLUTIONS");
+                return string.Empty;
+        }
     }
 }
